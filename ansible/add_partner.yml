@@ -1,0 +1,190 @@
+#!/usr/bin/env ansible-playbook --inventory="localhost,"
+---
+
+##############################################################################
+# Play 1 - Define hosts
+##############################################################################
+
+- name: Define hosts
+  hosts:        localhost
+  gather_facts: false
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  - name: Add jumphost server to inventory
+    add_host:
+      name:                         "{{defaults.jumphost}}"
+      groups:                       jumphost
+      ansible_host:                 "{{defaults.jumphost}}"
+      ansible_user:                 "ubuntu"
+      ansible_ssh_private_key_file: "{{defaults.masterkey}}"
+      ansible_python_interpreter:   "/usr/bin/python3"
+    changed_when: false
+
+  - name: Add transfer server to inventory
+    add_host:
+      name:                       "{{transfer}}"
+      groups:                     transfer
+      ansible_host:               "{{transfer}}"
+      ansible_user:               "ubuntu"
+      ansible_ssh_private_key_file: "{{defaults.masterkey}}"
+      ansible_ssh_common_args:    "-o ProxyCommand='ssh -i {{defaults.masterkey}} -W %h:%p -q ubuntu@{{defaults.jumphost}}'"
+      ansible_python_interpreter: "/usr/bin/python3"
+    changed_when: false
+
+##############################################################################
+# Play 2 - Configure jumphost
+##############################################################################
+
+- name: Configure jumphost
+  hosts:        jumphost
+  gather_facts: false
+  become:       yes
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  # Add user account
+  - name: Add user account
+    user:
+      name:         "{{partner}}"
+      comment:      "User account for git user '{{email}}'"
+      state:        present
+      shell:        "/usr/sbin/nologin"
+
+  # Add public key to git user account
+  - name: Add public key to git user account
+    authorized_key:
+      user:         "{{partner}}"
+      state:        present
+      key:          "{{key}}"
+
+##############################################################################
+# Play 3 - Configure transfer server
+##############################################################################
+
+- name: Configure transfer server
+  hosts:        transfer
+  gather_facts: false
+  become:       yes
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  - name: Configure apt proxy
+    template:
+      src:   ./templates/apt.conf.j2
+      dest:  /etc/apt/apt.conf
+      owner: root
+      group: root
+      mode:  '0644'
+
+  - name: Install rssh (restricted shell)
+    apt:
+      name:         rssh
+      update_cache: yes
+
+  - name: Allow scp access via rssh
+    lineinfile:
+      path:   /etc/rssh.conf
+      regexp: "{{item.regexp}}"
+      line:   "{{item.line}}"
+    loop:
+      - { regexp: "^.*allowscp.*",   line: "allowscp" }
+      - { regexp: "^.*allowsftp.*",  line: "allowsftp" }
+      - { regexp: "^.*allowrdist.*", line: "allowrdist" }
+      - { regexp: "^.*allowrsync.*", line: "allowrsync" }
+
+  - name: Add git user account
+    user:
+      name:         "{{partner}}_git"
+      comment:      "User account for git user '{{email}}'"
+      state:        present
+      shell:        "/usr/bin/git-shell"
+
+  - name: Add public key to git user account
+    authorized_key:
+      user:         "{{partner}}_git"
+      state:        present
+      key:          "{{key}}"
+
+  - name: Add repo user account
+    user:
+      name:         "{{partner}}_repo"
+      comment:      "User account for ftp user '{{email}}'"
+      state:        present
+      shell:        "/usr/bin/rssh"
+
+  - name: Add public key to repo user account
+    authorized_key:
+      user:         "{{partner}}_repo"
+      state:        present
+      key:          "{{key}}"
+
+  - name: Create git repository
+    file:
+      path:  "/home/{{partner}}_git/repo.git"
+      state: "directory"
+      owner: "{{partner}}_git"
+      group: "{{partner}}_git"
+      mode:  "0755"
+
+  - name: Initialise git repository
+    command:
+      chdir: "/home/{{partner}}_git/repo.git"
+      argv:
+        - "git"
+        - "init"
+        - "--bare"
+    changed_when: false
+
+  - name: Adjust ownership
+    file:
+      path:    "/home/{{partner}}_git/repo.git"
+      state:   "directory"
+      owner:   "{{partner}}_git"
+      group:   "{{partner}}_git"
+      recurse: "yes"
+
+##############################################################################
+# Play 4 - Create report
+##############################################################################
+
+- name: Create report
+  hosts:        localhost
+  gather_facts: false
+  connection:   local
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  - name: Create output directory
+    file:
+      path:      "./output/{{partner}}/"
+      state:     directory
+    delegate_to: localhost
+
+  - name: Create report I/II
+    template:
+      src:   templates/config.j2
+      dest:  "./output/{{partner}}/config"
+    delegate_to:  localhost
+
+  - name: Create report II/II
+    template:
+      src:   templates/readme.md.j2
+      dest:  "./output/{{partner}}/readme.md"
+    delegate_to:  localhost

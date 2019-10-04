@@ -1,0 +1,16 @@
+Host jumphost
+  User         "{{partner}}"
+  HostName     "{{defaults.jumphost}}"
+  IdentityFile "<location of private key file>"
+
+Host repo
+  User         "{{partner}}_repo"
+  ProxyCommand ssh -i "<location of private key file>" {{partner}}@{{defaults.jumphost}} -W %h:%p
+  HostName     "{{transfer}}"
+  IdentityFile "<location of private key file>"
+
+Host git
+  User         "{{partner}}_git"
+  ProxyCommand ssh -i "<location of private key file>" {{partner}}@{{defaults.jumphost}} -W %h:%p
+  HostName     "{{transfer}}"
+  IdentityFile "<location of private key file>"

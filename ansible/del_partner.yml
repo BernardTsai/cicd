@@ -1,0 +1,108 @@
+#!/usr/bin/env ansible-playbook --inventory="localhost,"
+---
+
+##############################################################################
+# Play 1 - Define hosts
+##############################################################################
+
+- name: Define hosts
+  hosts:        localhost
+  gather_facts: false
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  - name: Add jumphost server to inventory
+    add_host:
+      name:                         "{{defaults.jumphost}}"
+      groups:                       jumphost
+      ansible_host:                 "{{defaults.jumphost}}"
+      ansible_user:                 "ubuntu"
+      ansible_ssh_private_key_file: "{{defaults.masterkey}}"
+      ansible_python_interpreter:   "/usr/bin/python3"
+    changed_when: false
+
+  - name: Add transfer server to inventory
+    add_host:
+      name:                       "{{transfer}}"
+      groups:                     transfer
+      ansible_host:               "{{transfer}}"
+      ansible_user:               "ubuntu"
+      ansible_ssh_private_key_file: "{{defaults.masterkey}}"
+      ansible_ssh_common_args:    "-o ProxyCommand='ssh -i {{defaults.masterkey}} -W %h:%p -q ubuntu@{{defaults.jumphost}}'"
+      ansible_python_interpreter: "/usr/bin/python3"
+    changed_when: false
+
+##############################################################################
+# Play 2 - Configure jumphost
+##############################################################################
+
+- name: Configure jumphost
+  hosts:        jumphost
+  gather_facts: false
+  become:       yes
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  # Delete user account
+  - name: Delete user account
+    user:
+      name:         "{{partner}}"
+      state:        absent
+      remove:       yes
+
+##############################################################################
+# Play 3 - Configure transfer server
+##############################################################################
+
+- name: Configure transfer server
+  hosts:        transfer
+  gather_facts: false
+  become:       yes
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  - name: Delete git user account
+    user:
+      name:         "{{partner}}_git"
+      comment:      "User account for git user '{{email}}'"
+      state:        absent
+      remove:       yes
+
+  - name: Delete repo user account
+    user:
+      name:         "{{partner}}_repo"
+      state:        absent
+      remove:       yes
+
+##############################################################################
+# Play 4 - Remove report
+##############################################################################
+
+- name: Remove report
+  hosts:        localhost
+  gather_facts: false
+  connection:   local
+  tasks:
+  - name: Include default variables
+    include_vars:
+      file: variables/defaults.yml
+      name: defaults
+    changed_when: false
+
+  - name: Create output directory
+    file:
+      path:      "./output/{{partner}}/"
+      state:     absent
+    delegate_to: localhost

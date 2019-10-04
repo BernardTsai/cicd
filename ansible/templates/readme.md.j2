@@ -1,0 +1,42 @@
+Transfer-Server
+===============
+
+A transfer server has been set up to allow for uploading data in a secure way.
+This server is accessible via a ssh jumphost.
+It allows to upload data and synchronise git repositories.
+
+Architecture
+------------
+
+```
++---------------+      +------------+       +------------+
+|               |      |            |       |            |
+|  workstation  +----->+  jumphost  +------>+  transfer  |
+|               |      |            |       |            |
++---------------+      +------------+       +------------+
+```
+
+Usage
+-----
+
+The usage of the transfer server requires a basic understanding of how to use: ssh and git.
+
+**Preparation:**
+
+For the preparation append the contents of the config file to your ssh config file in ~/.ssh/config and replace the placeholder "\<location of private key file>" with the actual location of the private key file.
+
+**Uploading data**
+
+Data can be uploaded via scp or rsync, e.g.:
+
+> scp \<filename> repo:~/\<filename>
+
+The repo is located on the transfer server and is accesible via a restricted secure shell. The username of the account is "{{partner}}_repo" and is accessible via the private key corresponding to the public key which has been submitted when requesting access to the transfer server.
+
+**Synchronise Git Repositories**
+
+Information can be synchronised with a git repository hosted on the transfer server:
+
+> git clone git:/home/{{partner}}_git/repo.git/
+
+This repository can then be later updated via ```git push```.

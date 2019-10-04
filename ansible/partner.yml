@@ -1,0 +1,11 @@
+# define ip address of the transfer server
+transfer: "172.31.1.106"
+
+# define user account
+partner: "partner"
+
+# define email of user
+email: "admin@acme.com"
+
+# define key of user
+key: "ssh-rsa AAAAB3..."

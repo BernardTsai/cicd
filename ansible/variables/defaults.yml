@@ -1,0 +1,8 @@
+# define ip address of the jumphost server
+jumphost: "62.152.142.73"
+
+# define URL of proxy running on the jumphost server
+proxy: "http://172.31.1.17:3128"
+
+# define location of the master key
+masterkey: "~/.ssh/5GCore/id_rsa"
